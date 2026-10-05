@@ -15,12 +15,16 @@
 #include "TextureResource.h"
 #include "Misc/ScopeExit.h"
 
-static UDirectionalLightComponent* MakeLight(FPreviewScene& Scene)
+static UDirectionalLightComponent* MakeLight(FPreviewScene& Scene, int32 ForwardShadingPriority, bool bCastShadows)
 {
 	UDirectionalLightComponent* L = NewObject<UDirectionalLightComponent>(GetTransientPackage(), NAME_None, RF_Transient);
 	L->SetMobility(EComponentMobility::Movable);
-	L->SetCastShadows(true);
+	L->SetCastShadows(bCastShadows);
 	L->bAffectsWorld = true;
+	// Must be set BEFORE registration: the render proxy copies it once. Unique values per light,
+	// otherwise UE prints "Multiple directional lights are competing..." in the viewport.
+	L->ForwardShadingPriority = ForwardShadingPriority;
+	L->bAtmosphereSunLight = false;
 	Scene.AddComponent(L, FTransform::Identity);
 	return L;
 }
@@ -37,12 +41,16 @@ FIconForgeStudio::FIconForgeStudio()
 	MeshComp->SetMobility(EComponentMobility::Movable);
 	Scene->AddComponent(MeshComp, FTransform::Identity);
 
-	Key = MakeLight(*Scene);
-	Key->ForwardShadingPriority = 10;   // avoid "Multiple directional lights are competing" warning
-	Fill = MakeLight(*Scene);
-	Fill->SetCastShadows(false);
-	Rim = MakeLight(*Scene);
-	Rim->SetCastShadows(false);
+	// FPreviewScene always creates its own directional light (brightness 0 here): remove it,
+	// it would be a 4th competitor for forward shading with the default priority.
+	if (Scene->DirectionalLight)
+	{
+		Scene->RemoveComponent(Scene->DirectionalLight);
+	}
+
+	Key  = MakeLight(*Scene, 3, true);    // main light wins forward shading / translucency
+	Fill = MakeLight(*Scene, 2, false);
+	Rim  = MakeLight(*Scene, 1, false);
 
 	Capture = NewObject<USceneCaptureComponent2D>(GetTransientPackage(), NAME_None, RF_Transient);
 	Capture->bCaptureEveryFrame = false;

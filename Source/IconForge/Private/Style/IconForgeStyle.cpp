@@ -6,7 +6,6 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Brushes/SlateColorBrush.h"
 #include "Brushes/SlateImageBrush.h"
-#include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 
 TSharedPtr<FSlateStyleSet> FIconForgeStyle::StyleSet;
@@ -59,14 +58,17 @@ void FIconForgeStyle::Initialize()
 	S.Set("IconForge.Divider",     new FSlateColorBrush(Border()));
 
 	// ---- Images from <Plugin>/Resources ----
-	if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("IconForge")))
 	{
-		const FString Res = Plugin->GetBaseDir() / TEXT("Resources");
-		S.Set("IconForge.Donate", new FSlateImageBrush(Res / TEXT("DonationAlerts.png"), FVector2D(16.f, 18.6f)));
-	}
-	else
-	{
-		S.Set("IconForge.Donate", new FSlateColorBrush(Forge()));
+		// Plugin is installed in <Project>/Plugins/IconForge (no "Projects" module dependency needed)
+		const FString DonatePng = FPaths::ProjectPluginsDir() / TEXT("IconForge/Resources/DonationAlerts.png");
+		if (FPaths::FileExists(DonatePng))
+		{
+			S.Set("IconForge.Donate", new FSlateImageBrush(DonatePng, FVector2D(16.f, 18.6f)));
+		}
+		else
+		{
+			S.Set("IconForge.Donate", new FSlateRoundedBoxBrush(Forge(), 4.f, FVector2D(14.f, 14.f)));
+		}
 	}
 
 	// ---- Buttons ----
