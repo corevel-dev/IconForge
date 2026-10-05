@@ -89,7 +89,7 @@ Name pattern tokens: `{Name}`, `{BaseName}` (without `SM_` / `S_`), `{W}`, `{H}`
 
 ## 🧩 Compatibility
 
-It was tested on Unreal Engine version 5.8. For other engine versions, you will need to download the source code yourself and build it.
+It was tested and built using Unreal Engine version 5.8. For other engine versions, you will need to download the source code yourself and build it.
 
 ## 🛠️ Troubleshooting
 
