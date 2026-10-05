@@ -19,7 +19,7 @@ Orbit camera · 3-point lighting presets · transparent background · PNG + UI t
 [English](#-features) · [Русский](#-по-русски)
 
 <!-- Replace with your own screenshot / GIF: docs/screenshot.png -->
-<img src="docs/screenshot.png" width="900" alt="Icon Forge screenshot"/>
+<img src="docs/Screenshot.png" width="900" alt="Icon Forge screenshot"/>
 
 </div>
 
