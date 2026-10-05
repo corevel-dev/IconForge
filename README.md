@@ -1,31 +1,134 @@
-# Icon Forge v3 (UE 5.x Editor plugin)
+<div align="center">
 
-Studio for rendering item icons from Static Meshes: orbit camera, 3-point lighting presets,
-transparent background, PNG + UI Texture asset output, batch rendering.
+<img src="Resources/Icon128.png" width="128" alt="Icon Forge logo"/>
 
-## Install
-1. Copy the `IconForge` folder into `<Project>/Plugins/`.
-2. Delete `Plugins/IconForge/Binaries` and `Plugins/IconForge/Intermediate` if they exist.
-3. Regenerate project files and build the editor (C++ project required).
+# Icon Forge
 
-## Open
-* **Tools > Icon Forge**, or
-* right-click one or several Static Meshes in the Content Browser > **Icon Forge: Make Icon(s)**.
+**Studio-quality item icons from Static Meshes, right inside Unreal Engine 5.**
 
-## Layout
-| Panel | What it does |
+Orbit camera · 3-point lighting presets · transparent background · PNG + UI textures · batch rendering
+
+![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.x-0E1128?logo=unrealengine&logoColor=white)
+![Type](https://img.shields.io/badge/plugin-Editor%20only-7C8CFF)
+![Platform](https://img.shields.io/badge/platform-Win64-3DDC97)
+![License](https://img.shields.io/badge/license-MIT-FFB547)
+
+[English](#-features) · [Русский](#-по-русски)
+
+<!-- Replace with your own screenshot / GIF: docs/screenshot.png -->
+<img src="docs/screenshot.png" width="900" alt="Icon Forge screenshot"/>
+
+</div>
+
+---
+
+## ✨ Features
+
+| | |
 |---|---|
-| Header | Status (mesh, size, outputs), Presets, Reset, **Batch N**, **Shot!** |
-| MESHES | Asset list. Click = on stage, double-click = instant shot, Ctrl/Shift+click = batch selection. Chips: Project only / hide LODs |
-| STAGE | Viewport with exactly the icon aspect ratio. Camera presets 1-7, Frame, Reset, lighting presets, Guides |
-| SETTINGS | Quick chips (size, supersampling, background, outputs) + full details panel |
-| RESULT | Preview on checkerboard, paths, Open Folder / Find in Content / Copy Path, history |
+| 🎯 **What you see is the icon** | The stage viewport has exactly the aspect ratio of your icon. Framing in the viewport = framing in the file. |
+| 🎥 **Orbit camera** | Smooth orbit / pan / zoom, precise mode with Ctrl, 7 camera presets (Front, Back, Left, Right, Top, 3/4, Isometric). |
+| 💡 **Lighting presets** | Studio, Soft, Dramatic, Cool rim, Warm, Flat (UI). Key / Fill / Rim lights follow the camera. |
+| 🫥 **Real transparency** | Clean alpha with no dark fringes (premultiplied downscale), or any solid background colour. |
+| 🔍 **Supersampling** | Render up to 4× bigger and downscale for smooth edges. |
+| 💾 **Two outputs** | `.png` files and/or ready-to-use **UI Texture2D** assets (`TC_EditorIcon`, `TEXTUREGROUP_UI`, no mips). |
+| 📦 **Batch** | Select dozens of meshes, press **Batch**, get dozens of consistent icons. |
+| 🎛️ **Presets** | Save and load all settings as named JSON presets. The session is autosaved. |
+| 🖱️ **Content Browser integration** | Right-click one or many Static Meshes → **Icon Forge: Make Icon(s)**. |
 
-## Controls (stage)
-LMB orbit, MMB or Shift+LMB pan, RMB / wheel zoom, Ctrl = precise, F or double-click = frame,
-R = reset to 3/4, 1-7 camera presets, G = guides, Space / Enter = Shot!
+## 🚀 Installation
 
-## Files
-* Session (autosave): `Saved/IconForge/Session.json`
-* Presets: `Saved/IconForge/Presets/*.json`
-* PNG default: `Saved/Icons`, texture assets default: `/Game/Icons`
+1. Download the latest release (or clone this repo).
+2. Copy the `IconForge` folder to `<YourProject>/Plugins/`:
+   ```
+   YourProject/
+   └── Plugins/
+       └── IconForge/
+           └── IconForge.uplugin
+   ```
+3. Right-click `YourProject.uproject` → **Generate Visual Studio project files**.
+4. Build `Development Editor | Win64` and open the editor.
+
+> **Note:** a C++ project is required. Blueprint-only project? Add any C++ class once (Tools → New C++ Class) to convert it.
+
+## 🧭 Usage
+
+1. **Tools → Icon Forge** (or right-click a Static Mesh → *Icon Forge: Make Icon*).
+2. Click a mesh in **MESHES**: it appears on the **STAGE**.
+3. Choose an angle (mouse or keys `1`–`7`) and a light preset.
+4. Set size / background / outputs in **SETTINGS**.
+5. Press **Shot!** or `Space`. The icon appears in **RESULT**.
+
+### ⌨️ Controls
+
+| Input | Action |
+|---|---|
+| `LMB` drag | Orbit |
+| `MMB` / `Shift + LMB` drag | Pan |
+| `RMB` drag / Wheel | Zoom |
+| `Ctrl` (held) | Precise movement |
+| `F` / double-click | Frame object |
+| `R` | Reset to 3/4 view |
+| `1`–`7` | Camera presets |
+| `G` | Toggle guides |
+| `Space` / `Enter` | **Shot!** |
+
+### 📁 Where files go
+
+| What | Default location |
+|---|---|
+| PNG icons | `<Project>/Saved/Icons` |
+| Texture assets | `/Game/Icons` |
+| Session (autosave) | `<Project>/Saved/IconForge/Session.json` |
+| Presets | `<Project>/Saved/IconForge/Presets/*.json` |
+
+Name pattern tokens: `{Name}`, `{BaseName}` (without `SM_` / `S_`), `{W}`, `{H}`. Default: `T_{Name}_Icon`.
+
+## 🧩 Compatibility
+
+| Engine | Status |
+|---|---|
+| UE 5.x (TODO: your exact version) | ✅ Tested |
+| Other UE 5 versions | ❓ Not tested yet, reports welcome |
+
+Editor-only plugin: nothing is added to your packaged game.
+
+## 🛠️ Troubleshooting
+
+<details>
+<summary><b>LNK2019 / unresolved external after updating the plugin</b></summary>
+
+Delete `Plugins/IconForge/Binaries` and `Plugins/IconForge/Intermediate`, regenerate project files and build again. Always replace the plugin folder fully instead of copying over the old one.
+</details>
+
+<details>
+<summary><b>Icon looks blurry or has missing textures</b></summary>
+
+Icon Forge waits for shader and texture compilation, but with very heavy projects try pressing Shot! once more after the editor finished compiling shaders.
+</details>
+
+<details>
+<summary><b>My engine / plugin meshes are not in the list</b></summary>
+
+Turn off the **Project** chip in the MESHES panel.
+</details>
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome. Please mention your engine version and attach the Output Log for bugs.
+
+## 📄 License
+
+[MIT](LICENSE) © TODO: your name
+
+---
+
+## 🇷🇺 По-русски
+
+**Icon Forge** — плагин редактора UE5 для создания иконок предметов из Static Mesh: камера-орбита, пресеты света, прозрачный фон, PNG и UI-текстуры, пакетный рендер.
+
+**Установка:** скопируйте папку `IconForge` в `<Проект>/Plugins/`, сгенерируйте project files, соберите `Development Editor`.
+
+**Использование:** *Tools → Icon Forge* → выберите меш → настройте ракурс и свет → **Shot!** (Пробел). Несколько мешей: Ctrl/Shift + клик → **Batch**.
+
+Подробности: [QUICKSTART_RU.md](QUICKSTART_RU.md).
