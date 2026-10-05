@@ -1,2 +1,9 @@
-/Binaries
-/Intermediate
+Binaries/
+Intermediate/
+*.sln
+.vs/
+.vscode/
+.idea/
+*.pdb
+Saved/
+DerivedDataCache/

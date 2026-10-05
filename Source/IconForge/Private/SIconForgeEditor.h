@@ -77,6 +77,7 @@ private:
 	FReply OnCopyPath();
 	FReply OnClearHistory();
 	FReply OnResetSettings();
+	FReply OnDonate();
 	void ApplyCameraPreset(EIconForgeCameraPreset P);
 	void ApplyLightPreset(EIconForgeLightPreset P);
 	void SetSquareSize(int32 Size);

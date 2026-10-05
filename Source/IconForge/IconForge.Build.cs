@@ -14,7 +14,7 @@ public class IconForge : ModuleRules
 			"UnrealEd", "EditorFramework", "ToolMenus",
 			"ContentBrowser", "ContentBrowserData", "AssetRegistry", "PropertyEditor",
 			"RenderCore", "RHI", "ImageCore", "ImageWrapper",
-			"Json", "JsonUtilities"
+			"Json", "JsonUtilities", "Projects"
 		});
 	}
 }

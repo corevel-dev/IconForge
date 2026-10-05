@@ -5,6 +5,9 @@
 #include "Styling/AppStyle.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Brushes/SlateColorBrush.h"
+#include "Brushes/SlateImageBrush.h"
+#include "Interfaces/IPluginManager.h"
+#include "Misc/Paths.h"
 
 TSharedPtr<FSlateStyleSet> FIconForgeStyle::StyleSet;
 
@@ -54,6 +57,17 @@ void FIconForgeStyle::Initialize()
 	S.Set("IconForge.Outline.Dim", new FSlateRoundedBoxBrush(Clear, 7.f, Border(), 1.f));
 	S.Set("IconForge.Logo",        new FSlateRoundedBoxBrush(Accent(), 7.f));
 	S.Set("IconForge.Divider",     new FSlateColorBrush(Border()));
+
+	// ---- Images from <Plugin>/Resources ----
+	if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("IconForge")))
+	{
+		const FString Res = Plugin->GetBaseDir() / TEXT("Resources");
+		S.Set("IconForge.Donate", new FSlateImageBrush(Res / TEXT("DonationAlerts.png"), FVector2D(16.f, 18.6f)));
+	}
+	else
+	{
+		S.Set("IconForge.Donate", new FSlateColorBrush(Forge()));
+	}
 
 	// ---- Buttons ----
 	auto MakeButton = [](const FLinearColor& N, const FLinearColor& NB, const FLinearColor& H, const FLinearColor& HB,

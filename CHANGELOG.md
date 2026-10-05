@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.1
+* Donate button (DonationAlerts) in the header, opens https://dalink.to/coreveldev.
+* Build: added `Projects` module dependency (plugin resource images).
+
 ## 3.0.0
 ### New interface (Causality Engine design language)
 * Own style set `IconForgeStyle`: dark rounded panels, accent colour, chips, captions, pills.

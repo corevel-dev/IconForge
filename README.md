@@ -12,6 +12,9 @@ Orbit camera · 3-point lighting presets · transparent background · PNG + UI t
 ![Type](https://img.shields.io/badge/plugin-Editor%20only-7C8CFF)
 ![Platform](https://img.shields.io/badge/platform-Win64-3DDC97)
 ![License](https://img.shields.io/badge/license-MIT-FFB547)
+[![Donate](https://img.shields.io/badge/Donate-DonationAlerts-F57507)](https://dalink.to/coreveldev)
+
+<a href="https://dalink.to/coreveldev"><img src="docs/donationalerts.png" height="36" alt="Donate via DonationAlerts"/></a>
 
 [English](#-features) · [Русский](#-по-русски)
 
@@ -113,6 +116,24 @@ Icon Forge waits for shader and texture compilation, but with very heavy project
 Turn off the **Project** chip in the MESHES panel.
 </details>
 
+## 💛 Support the project
+
+Icon Forge is free. If it saved you time, you can support development on **DonationAlerts**.
+The **Donate** button in the plugin header opens the same page.
+
+<table>
+<tr>
+<td align="center">
+<a href="https://dalink.to/coreveldev"><img src="docs/donationalerts.png" height="48" alt="DonationAlerts"/></a><br/>
+<a href="https://dalink.to/coreveldev"><b>dalink.to/coreveldev</b></a>
+</td>
+<td align="center">
+<img src="docs/donate-qr.png" width="180" alt="Donate QR code"/><br/>
+<sub>Scan to donate</sub>
+</td>
+</tr>
+</table>
+
 ## 🤝 Contributing
 
 Issues and pull requests are welcome. Please mention your engine version and attach the Output Log for bugs.
@@ -132,3 +153,5 @@ Issues and pull requests are welcome. Please mention your engine version and att
 **Использование:** *Tools → Icon Forge* → выберите меш → настройте ракурс и свет → **Shot!** (Пробел). Несколько мешей: Ctrl/Shift + клик → **Batch**.
 
 Подробности: [QUICKSTART_RU.md](QUICKSTART_RU.md).
+
+**Поддержать проект:** [dalink.to/coreveldev](https://dalink.to/coreveldev) (DonationAlerts), QR-код выше. Кнопка **Donate** есть и в шапке самого плагина.

@@ -39,6 +39,8 @@ using namespace IconForgeUI;
 
 namespace
 {
+	const TCHAR* DonateUrl = TEXT("https://dalink.to/coreveldev");
+
 	FRotator PresetRotation(EIconForgeCameraPreset P)
 	{
 		switch (P)
@@ -222,6 +224,26 @@ TSharedRef<SWidget> SIconForgeEditor::BuildHeader()
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 				[
 					SNew(STextBlock).TextStyle(&St(), "IconForge.Text.Mono").Text(this, &SIconForgeEditor::GetStatusText)
+				]
+			]
+		]
+		// Donate (DonationAlerts)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 6.f, 0.f)
+		[
+			SNew(SButton)
+			.ButtonStyle(&St(), "IconForge.Button")
+			.IsFocusable(false)
+			.ToolTipText(LOCTEXT("DonateTip", "Support Icon Forge on DonationAlerts (opens dalink.to/coreveldev in your browser)"))
+			.OnClicked(this, &SIconForgeEditor::OnDonate)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 6.f, 0.f)
+				[
+					SNew(SImage).Image(FIconForgeStyle::Brush("IconForge.Donate"))
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).TextStyle(&St(), "IconForge.Text.Button").Text(LOCTEXT("Donate", "Donate"))
 				]
 			]
 		]
@@ -1149,6 +1171,14 @@ FReply SIconForgeEditor::OnClearHistory()
 	History.Reset();
 	SelectedShot.Reset();
 	RebuildHistoryStrip();
+	return FReply::Handled();
+}
+
+FReply SIconForgeEditor::OnDonate()
+{
+	FString Error;
+	FPlatformProcess::LaunchURL(DonateUrl, nullptr, &Error);
+	if (!Error.IsEmpty()) { Notify(FString::Printf(TEXT("Could not open the browser: %s"), DonateUrl), false); }
 	return FReply::Handled();
 }
 
