@@ -1,0 +1,15 @@
+{
+	"FileVersion": 3,
+	"Version": 3,
+	"VersionName": "3.0.0",
+	"FriendlyName": "Icon Forge",
+	"Description": "Studio for rendering item icons from Static Meshes: orbit camera, 3-point lighting presets, transparent background, PNG + Texture asset output, batch rendering.",
+	"Category": "Editor",
+	"CreatedBy": "IconForge",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"Installed": false,
+	"Modules": [
+		{ "Name": "IconForge", "Type": "Editor", "LoadingPhase": "PostEngineInit" }
+	]
+}
