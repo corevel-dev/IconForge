@@ -89,12 +89,7 @@ Name pattern tokens: `{Name}`, `{BaseName}` (without `SM_` / `S_`), `{W}`, `{H}`
 
 ## 🧩 Compatibility
 
-| Engine | Status |
-|---|---|
-| UE 5.x (TODO: your exact version) | ✅ Tested |
-| Other UE 5 versions | ❓ Not tested yet, reports welcome |
-
-Editor-only plugin: nothing is added to your packaged game.
+It was tested on Unreal Engine version 5.8. For other engine versions, you will need to download the source code yourself and build it.
 
 ## 🛠️ Troubleshooting
 
@@ -140,18 +135,6 @@ Issues and pull requests are welcome. Please mention your engine version and att
 
 ## 📄 License
 
-[MIT](LICENSE) © TODO: your name
-
----
-
-## 🇷🇺 По-русски
-
-**Icon Forge** — плагин редактора UE5 для создания иконок предметов из Static Mesh: камера-орбита, пресеты света, прозрачный фон, PNG и UI-текстуры, пакетный рендер.
-
-**Установка:** скопируйте папку `IconForge` в `<Проект>/Plugins/`, сгенерируйте project files, соберите `Development Editor`.
-
-**Использование:** *Tools → Icon Forge* → выберите меш → настройте ракурс и свет → **Shot!** (Пробел). Несколько мешей: Ctrl/Shift + клик → **Batch**.
-
-Подробности: [QUICKSTART_RU.md](QUICKSTART_RU.md).
+[MIT](LICENSE) © 2026 corevel-dev
 
 **Поддержать проект:** [dalink.to/coreveldev](https://dalink.to/coreveldev) (DonationAlerts), QR-код выше. Кнопка **Donate** есть и в шапке самого плагина.
