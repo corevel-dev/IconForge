@@ -10,7 +10,6 @@ Orbit camera · 3-point lighting presets · transparent background · PNG + UI t
 
 ![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.x-0E1128?logo=unrealengine&logoColor=white)
 ![Type](https://img.shields.io/badge/plugin-Editor%20only-7C8CFF)
-![Platform](https://img.shields.io/badge/platform-Win64-3DDC97)
 ![License](https://img.shields.io/badge/license-MIT-FFB547)
 [![Donate](https://img.shields.io/badge/Donate-DonationAlerts-F57507)](https://dalink.to/coreveldev)
 
