@@ -28,8 +28,12 @@ public:
 	void ApplySettings(const UIconForgeSettings& S, const FRotator& CameraRotation);
 	void FillPostProcess(const UIconForgeSettings& S, FPostProcessSettings& PP) const;
 
-	/** Renders final icon (BGRA, straight alpha) at S.Width x S.Height. TanHalfVFov = tan(vertical FOV / 2) */
-	bool Render(const UIconForgeSettings& S, const FVector& CamLoc, const FRotator& CamRot, float TanHalfVFov, TArray<FColor>& OutPixels);
+	/**
+	 * Renders the raw icon (BGRA, straight alpha, transparent background) at S.Width x S.Height.
+	 * Background + effects are applied afterwards by IconForgeFX::Process.
+	 * TanHalfVFov = tan(vertical FOV / 2). bFastPreview = 1x supersampling, no streaming wait (live FX preview).
+	 */
+	bool Render(const UIconForgeSettings& S, const FVector& CamLoc, const FRotator& CamRot, float TanHalfVFov, TArray<FColor>& OutPixels, bool bFastPreview = false);
 
 	/** Frees the (potentially large) render targets kept between shots of a batch. */
 	void ReleaseTargets();
@@ -38,7 +42,7 @@ public:
 	virtual FString GetReferencerName() const override { return TEXT("FIconForgeStudio"); }
 
 private:
-	UTextureRenderTarget2D* AcquireTarget(TObjectPtr<UTextureRenderTarget2D>& Slot, int32 W, int32 H, EPixelFormat Format, bool bLinear);
+	UTextureRenderTarget2D* AcquireTarget(TObjectPtr<UTextureRenderTarget2D>& Slot, int32 W, int32 H, EPixelFormat Format, bool bLinear, float Gamma);
 
 	TUniquePtr<FPreviewScene> Scene;
 	TObjectPtr<UStaticMeshComponent> MeshComp = nullptr;

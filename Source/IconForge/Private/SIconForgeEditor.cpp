@@ -1,5 +1,7 @@
 #include "SIconForgeEditor.h"
 #include "SIconForgeViewport.h"
+#include "IconForgeEffects.h"
+#include "HAL/PlatformTime.h"
 #include "Style/IconForgeStyle.h"
 #include "Style/IconForgeWidgets.h"
 #include "ContentBrowserModule.h"
@@ -110,6 +112,18 @@ void SIconForgeEditor::Construct(const FArguments&)
 			N == GET_MEMBER_NAME_CHECKED(UIconForgeSettings, MeshRotation) ||
 			N == GET_MEMBER_NAME_CHECKED(UIconForgeSettings, Width) ||
 			N == GET_MEMBER_NAME_CHECKED(UIconForgeSettings, Height);
+		const bool bFXOnly = N == GET_MEMBER_NAME_CHECKED(UIconForgeSettings, ColorFX) ||
+			N == GET_MEMBER_NAME_CHECKED(UIconForgeSettings, RetroFX) ||
+			N == GET_MEMBER_NAME_CHECKED(UIconForgeSettings, StylizeFX) ||
+			N == GET_MEMBER_NAME_CHECKED(UIconForgeSettings, CRTFX);
+		if (bFXOnly)
+		{
+			// Hand-tuned effects: no preset chip is highlighted any more. Effects never need a new capture.
+			Settings->ActiveFXPreset = EIconForgeFXPreset::Custom;
+			bSessionDirty = true;
+			RequestLivePreview(false);
+			return;
+		}
 		OnSettingsChanged(bReframe);
 	});
 
@@ -125,6 +139,7 @@ void SIconForgeEditor::Construct(const FArguments&)
 		O.Pitch = (float)Settings->LastCameraRotation.Pitch;
 		O.Yaw = (float)Settings->LastCameraRotation.Yaw;
 		C->SetOrbit(O, true);
+		LastSeenOrbit = C->GetOrbit();
 	}
 
 	ChildSlot
@@ -165,6 +180,7 @@ SIconForgeEditor::~SIconForgeEditor()
 void SIconForgeEditor::Tick(const FGeometry& G, const double T, const float Dt)
 {
 	SCompoundWidget::Tick(G, T, Dt);
+	UpdateLivePreview();
 	if (!AspectBox || !Settings) { return; }
 	// Biggest box with the icon aspect ratio inside the stage (parent border, padding 6)
 	TSharedPtr<SWidget> Parent = AspectBox->GetParentWidget();
@@ -547,7 +563,56 @@ TSharedRef<SWidget> SIconForgeEditor::BuildQuickSettings()
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[ Row(LOCTEXT("SizeCap", "SIZE"), Sizes) ]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[ Row(LOCTEXT("QualityCap", "QUALITY"), Quality) ]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[ Row(LOCTEXT("BgCap", "BACKGROUND"), Background) ]
-		+ SVerticalBox::Slot().AutoHeight()[ Row(LOCTEXT("OutCap", "OUTPUT"), Output) ];
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[ Row(LOCTEXT("OutCap", "OUTPUT"), Output) ]
+		+ SVerticalBox::Slot().AutoHeight()[ Row(LOCTEXT("FxCap", "LOOK / FX"), BuildFXPresets()) ];
+}
+
+TSharedRef<SWidget> SIconForgeEditor::BuildFXPresets()
+{
+	struct FItem { EIconForgeFXPreset P; FText Label; FText Tip; };
+	const TArray<FItem> Items = {
+		{ EIconForgeFXPreset::None,       LOCTEXT("FxNone", "Clean"),      LOCTEXT("FxNoneTip", "No effects: the render as is") },
+		{ EIconForgeFXPreset::GameBoy,    LOCTEXT("FxGB", "Game Boy"),     LOCTEXT("FxGBTip", "32 px sprite, 4 shades of green, ordered dither, dark outline") },
+		{ EIconForgeFXPreset::NES,        LOCTEXT("FxNES", "NES"),         LOCTEXT("FxNESTip", "32 px sprite, NES hardware palette, black outline") },
+		{ EIconForgeFXPreset::PICO8,      LOCTEXT("FxP8", "PICO-8"),       LOCTEXT("FxP8Tip", "32 px sprite, PICO-8 16-colour palette, light dither") },
+		{ EIconForgeFXPreset::SNES,       LOCTEXT("FxSNES", "16-bit"),     LOCTEXT("FxSNESTip", "64 px sprite, 15 hand-picked colours (auto palette), outline + inner edge shading") },
+		{ EIconForgeFXPreset::PS1,        LOCTEXT("FxPS1", "PS1"),         LOCTEXT("FxPS1Tip", "128 px, 15-bit colour with the famous 4x4 PlayStation dither") },
+		{ EIconForgeFXPreset::CGA,        LOCTEXT("FxCGA", "CGA"),         LOCTEXT("FxCGATip", "Cyan / magenta / white, 1981 PC style") },
+		{ EIconForgeFXPreset::OneBitMac,  LOCTEXT("Fx1Bit", "1-bit Mac"),  LOCTEXT("Fx1BitTip", "Black & white with Atkinson dithering (classic Macintosh)") },
+		{ EIconForgeFXPreset::VirtualBoy, LOCTEXT("FxVB", "Virtual Boy"),  LOCTEXT("FxVBTip", "Red on black with scanlines") },
+		{ EIconForgeFXPreset::Arcade,     LOCTEXT("FxArc", "CRT Arcade"),  LOCTEXT("FxArcTip", "Curved tube, scanlines, phosphor mask, chromatic aberration, neon glow") },
+		{ EIconForgeFXPreset::Toon,       LOCTEXT("FxToon", "Toon"),       LOCTEXT("FxToonTip", "Cel-shaded colours with a thick ink outline") },
+		{ EIconForgeFXPreset::CleanUI,    LOCTEXT("FxUI", "Clean UI"),     LOCTEXT("FxUITip", "Crisp outline + soft drop shadow for modern inventories") },
+		{ EIconForgeFXPreset::Legendary,  LOCTEXT("FxLeg", "Legendary"),   LOCTEXT("FxLegTip", "Golden glow, radial slot background and rounded rarity frame") },
+	};
+	TSharedRef<SWrapBox> Box = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(4.f, 4.f));
+	for (const FItem& I : Items)
+	{
+		const EIconForgeFXPreset P = I.P;
+		Box->AddSlot()
+		[
+			Chip(I.Label,
+				[this, P]() { return Settings->ActiveFXPreset == P; },
+				[this, P](bool) { ApplyFXPreset(P); },
+				FText::Format(LOCTEXT("FxTip", "{0}\nResets all effects first. Fine-tune in SETTINGS > Color / Retro / Stylize / CRT."), I.Tip))
+		];
+	}
+	Box->AddSlot()
+	[
+		SNew(SBox).Visibility_Lambda([this]() { return Settings->ActiveFXPreset == EIconForgeFXPreset::Custom ? EVisibility::Visible : EVisibility::Collapsed; })
+		[ Pill(LOCTEXT("FxCustom", "CUSTOM"), FIconForgeStyle::Live()) ]
+	];
+	return Box;
+}
+
+void SIconForgeEditor::ApplyFXPreset(EIconForgeFXPreset P)
+{
+	Settings->ApplyFXPreset(P);
+	Details->ForceRefresh();
+	bSessionDirty = true;
+	bShowLive = true;
+	if (!Settings->bLiveFXPreview) { Settings->bLiveFXPreview = true; }
+	RequestLivePreview(false);
 }
 
 TSharedRef<SWidget> SIconForgeEditor::BuildSettingsPanel()
@@ -572,10 +637,32 @@ TSharedRef<SWidget> SIconForgeEditor::BuildSettingsPanel()
 
 TSharedRef<SWidget> SIconForgeEditor::BuildResultPanel()
 {
-	TSharedRef<SWidget> Extra = SNew(SBox).Visibility_Lambda([this]() { return History.Num() > 0 ? EVisibility::Visible : EVisibility::Collapsed; })
+	TSharedRef<SWidget> Extra = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, 4.f, 0.f)
 		[
-			Button(LOCTEXT("Clear", "Clear"), FOnClicked::CreateSP(this, &SIconForgeEditor::OnClearHistory),
-				LOCTEXT("ClearTip", "Clear the history strip (files and assets are kept)"), "IconForge.Button.Small")
+			Chip(LOCTEXT("LiveChip", "Live FX"),
+				[this]() { return Settings->bLiveFXPreview && bShowLive; },
+				[this](bool bOn)
+				{
+					Settings->bLiveFXPreview = bOn; bShowLive = bOn; bSessionDirty = true;
+					if (bOn) { RequestLivePreview(true); }
+				},
+				LOCTEXT("LiveTip", "Live preview of the final icon WITH all effects (retro, outline, CRT...). Updates when you stop moving the camera or change a setting."))
+		]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, 4.f, 0.f)
+		[
+			Chip(LOCTEXT("ABChip", "A/B"),
+				[this]() { return bCompareRaw; },
+				[this](bool bOn) { bCompareRaw = bOn; },
+				LOCTEXT("ABTip", "Compare: show the live preview without effects"))
+		]
+		+ SHorizontalBox::Slot().AutoWidth()
+		[
+			SNew(SBox).Visibility_Lambda([this]() { return History.Num() > 0 ? EVisibility::Visible : EVisibility::Collapsed; })
+			[
+				Button(LOCTEXT("Clear", "Clear"), FOnClicked::CreateSP(this, &SIconForgeEditor::OnClearHistory),
+					LOCTEXT("ClearTip", "Clear the history strip (files and assets are kept)"), "IconForge.Button.Small")
+			]
 		];
 
 	return Panel(LOCTEXT("ResultCap", "RESULT"),
@@ -589,23 +676,37 @@ TSharedRef<SWidget> SIconForgeEditor::BuildResultPanel()
 				+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)
 				[
 					SNew(SScaleBox).Stretch(EStretch::ScaleToFit)
-					.Visibility_Lambda([this]() { return SelectedShot ? EVisibility::Visible : EVisibility::Collapsed; })
+					.Visibility_Lambda([this]() { return GetResultBrush() ? EVisibility::Visible : EVisibility::Collapsed; })
 					[
 						SNew(SBox)
-						.WidthOverride_Lambda([this]() -> FOptionalSize { return SelectedShot ? FOptionalSize((float)SelectedShot->Width) : FOptionalSize(); })
-						.HeightOverride_Lambda([this]() -> FOptionalSize { return SelectedShot ? FOptionalSize((float)SelectedShot->Height) : FOptionalSize(); })
+						// Tiny native sprites (32x32) are shown at least 256 px big
+						.WidthOverride_Lambda([this]() -> FOptionalSize { const FVector2D Sz = GetResultSize(); return Sz.X > 0 ? FOptionalSize((float)Sz.X) : FOptionalSize(); })
+						.HeightOverride_Lambda([this]() -> FOptionalSize { const FVector2D Sz = GetResultSize(); return Sz.Y > 0 ? FOptionalSize((float)Sz.Y) : FOptionalSize(); })
 						[
 							SNew(SOverlay)
 							+ SOverlay::Slot()[ SNew(SImage).Image(FAppStyle::GetBrush("Checkerboard")) ]
-							+ SOverlay::Slot()[ SNew(SImage).Image_Lambda([this]() { return SelectedShot && SelectedShot->Brush ? SelectedShot->Brush.Get() : FAppStyle::GetNoBrush(); }) ]
+							+ SOverlay::Slot()[ SNew(SImage).Image_Lambda([this]() { const FSlateBrush* B = GetResultBrush(); return B ? B : FAppStyle::GetNoBrush(); }) ]
 						]
+					]
+				]
+				+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top)
+				[
+					SNew(SBox).Visibility_Lambda([this]() { return bShowLive && LiveBrush ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+					[
+						Pill(TAttribute<FText>::CreateLambda([this]()
+						{
+							const FText Mode = bCompareRaw ? LOCTEXT("LiveRaw", "LIVE \u00B7 NO FX") : LOCTEXT("LiveFx", "LIVE FX");
+							return FText::Format(LOCTEXT("LivePill", "{0}  \u00B7  {1}\u00D7{2}  \u00B7  {3} ms"), Mode,
+								FText::AsNumber(LiveSize.X, &FNumberFormattingOptions::DefaultNoGrouping()),
+								FText::AsNumber(LiveSize.Y, &FNumberFormattingOptions::DefaultNoGrouping()), FText::AsNumber(FMath::RoundToInt(LastLiveMs)));
+						}), FIconForgeStyle::Live())
 					]
 				]
 				+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center).Padding(10.f)
 				[
 					SNew(STextBlock).TextStyle(&St(), "IconForge.Text.Muted").AutoWrapText(true).Justification(ETextJustify::Center)
 					.Text(LOCTEXT("NoShot", "Your icons appear here.\nPress Shot! or Space."))
-					.Visibility_Lambda([this]() { return SelectedShot ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+					.Visibility_Lambda([this]() { return GetResultBrush() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 				]
 			]
 		]
@@ -613,7 +714,7 @@ TSharedRef<SWidget> SIconForgeEditor::BuildResultPanel()
 		+ SVerticalBox::Slot().AutoHeight().Padding(14.f, 0.f, 14.f, 2.f)
 		[
 			SNew(SHorizontalBox)
-			.Visibility_Lambda([this]() { return SelectedShot ? EVisibility::Visible : EVisibility::Collapsed; })
+			.Visibility_Lambda([this]() { return SelectedShot && !bShowLive ? EVisibility::Visible : EVisibility::Collapsed; })
 			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
 			[
 				SNew(STextBlock).TextStyle(&St(), "IconForge.Text.H2")
@@ -633,7 +734,7 @@ TSharedRef<SWidget> SIconForgeEditor::BuildResultPanel()
 		+ SVerticalBox::Slot().AutoHeight().Padding(14.f, 0.f, 14.f, 8.f)
 		[
 			SNew(STextBlock).TextStyle(&St(), "IconForge.Text.Mono").AutoWrapText(true)
-			.Visibility_Lambda([this]() { return SelectedShot ? EVisibility::Visible : EVisibility::Collapsed; })
+			.Visibility_Lambda([this]() { return SelectedShot && !bShowLive ? EVisibility::Visible : EVisibility::Collapsed; })
 			.Text_Lambda([this]()
 			{
 				if (!SelectedShot) { return FText::GetEmpty(); }
@@ -683,7 +784,7 @@ void SIconForgeEditor::RebuildHistoryStrip()
 				+ SOverlay::Slot()
 				[
 					SNew(SButton).ButtonStyle(&St(), "IconForge.Button.Ghost").IsFocusable(false).ContentPadding(FMargin(3.f)).ToolTipText(Tip)
-					.OnClicked_Lambda([this, S]() { SelectedShot = S; return FReply::Handled(); })
+					.OnClicked_Lambda([this, S]() { SelectedShot = S; bShowLive = false; return FReply::Handled(); })
 					[
 						SNew(SOverlay)
 						+ SOverlay::Slot()[ SNew(SImage).Image(FAppStyle::GetBrush("Checkerboard")) ]
@@ -758,6 +859,7 @@ void SIconForgeEditor::OnSettingsChanged(bool bReframe)
 		C->Invalidate();
 	}
 	if (bReframe) { OnFrame(); }
+	RequestLivePreview(true);
 }
 
 void SIconForgeEditor::SaveSessionNow()
@@ -832,6 +934,7 @@ void SIconForgeEditor::SelectMesh(const FAssetData& Asset)
 		Studio->ApplySettings(*Settings, Viewport->GetClient()->GetCameraRotation());
 		Viewport->GetClient()->FrameMesh(nullptr, true);
 	}
+	RequestLivePreview(true);
 }
 
 void SIconForgeEditor::OpenAssets(const TArray<FAssetData>& Assets)
@@ -867,6 +970,7 @@ void SIconForgeEditor::ApplyCameraPreset(EIconForgeCameraPreset P)
 		Studio->ApplySettings(*Settings, R);
 		C->FrameMesh(&R);
 		bSessionDirty = true;
+		RequestLivePreview(true);
 	}
 }
 
@@ -952,11 +1056,15 @@ bool SIconForgeEditor::Shoot(const FIconForgeView& View, FString& OutMsg, TArray
 		return false;
 	}
 
+	// Same code path as the live preview: background, retro, outlines, CRT...
+	int32 OutW = Settings->Width, OutH = Settings->Height;
+	IconForgeFX::Process(*Settings, Px, OutW, OutH);
+
 	TSharedRef<FIconForgeShot> Shot = MakeShared<FIconForgeShot>();
 	Shot->MeshName = Mesh->GetName();
 	Shot->Name = MakeIconName(Shot->MeshName);
-	Shot->Width = Settings->Width;
-	Shot->Height = Settings->Height;
+	Shot->Width = OutW;
+	Shot->Height = OutH;
 	Shot->Time = FDateTime::Now();
 	const bool bOk = SaveIcon(Px, *Shot, DeferredSave);
 	AddToHistory(Px, Shot);
@@ -971,6 +1079,7 @@ FReply SIconForgeEditor::OnShot()
 	FString Msg;
 	const bool bOk = Shoot(C->SnapAndGetView(), Msg, nullptr);   // finish smoothing, shoot exactly what is targeted
 	Studio->ReleaseTargets();
+	bShowLive = false;          // show the fresh shot in RESULT
 	Notify(bOk ? FString::Printf(TEXT("Icon saved: %s"), *Msg) : Msg, bOk);
 	return FReply::Handled();
 }
@@ -1032,7 +1141,7 @@ FReply SIconForgeEditor::OnBatchShot()
 
 bool SIconForgeEditor::SaveIcon(const TArray<FColor>& Px, FIconForgeShot& Shot, TArray<UPackage*>* DeferredSave)
 {
-	const int32 W = Settings->Width, H = Settings->Height;
+	const int32 W = Shot.Width, H = Shot.Height;   // may differ from Settings (native pixel-art output)
 	const FString Name = Shot.Name;
 	TArray<FString> Errors;
 	bool bAny = false;
@@ -1078,7 +1187,10 @@ bool SIconForgeEditor::SaveIcon(const TArray<FColor>& Px, FIconForgeShot& Shot, 
 				Tex->CompressionSettings = TC_EditorIcon;
 				Tex->LODGroup = TEXTUREGROUP_UI;
 				Tex->MipGenSettings = TMGS_NoMipmaps;
-				Tex->CompressionNoAlpha = !Settings->bTransparentBackground;
+				// Gradient backgrounds are opaque, rounded corners are not: keep alpha whenever the image has any
+				Tex->CompressionNoAlpha = !Px.ContainsByPredicate([](const FColor& C) { return C.A < 255; });
+				// Pixel art must stay crisp when the UI scales it
+				Tex->Filter = Settings->WantsPixelFiltering() ? TF_Nearest : TF_Default;
 				Tex->PostEditChange();
 				if (bNew) { FAssetRegistryModule::AssetCreated(Tex); }
 				Pkg->MarkPackageDirty();
@@ -1106,6 +1218,7 @@ void SIconForgeEditor::AddToHistory(const TArray<FColor>& Px, TSharedRef<FIconFo
 	UTexture2D* T = UTexture2D::CreateTransient(W, H, PF_B8G8R8A8);
 	if (!T) { return; }
 	T->SRGB = true;
+	T->Filter = Settings->WantsPixelFiltering() ? TF_Nearest : TF_Default;
 	void* Data = T->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
 	FMemory::Memcpy(Data, Px.GetData(), Px.Num() * sizeof(FColor));
 	T->GetPlatformData()->Mips[0].BulkData.Unlock();
@@ -1189,6 +1302,121 @@ void SIconForgeEditor::Notify(const FString& Msg, bool bSuccess)
 	Info.bUseSuccessFailIcons = true;
 	TSharedPtr<SNotificationItem> N = FSlateNotificationManager::Get().AddNotification(Info);
 	if (N) { N->SetCompletionState(bSuccess ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail); }
+}
+
+// ============================================================ Live FX preview
+
+void SIconForgeEditor::RequestLivePreview(bool bRerender)
+{
+	if (!Settings || !Settings->bLiveFXPreview) { return; }
+	if (bRerender || LiveRaw.Num() == 0) { bLiveNeedsRender = true; }
+	bLiveNeedsFX = true;
+	LiveRequestTime = FPlatformTime::Seconds();
+	bShowLive = true;
+}
+
+void SIconForgeEditor::UpdateLivePreview()
+{
+	if (!Settings || !Studio || !Viewport || bBatchRunning) { return; }
+	TSharedPtr<FIconForgeViewportClient> C = Viewport->GetClient();
+	if (!C) { return; }
+
+	// Camera moved? Wait until the user stops (debounce), then capture once
+	const FIconForgeOrbit O = C->GetOrbit();
+	if (!O.Target.Equals(LastSeenOrbit.Target, 0.01) || !FMath::IsNearlyEqual(O.Yaw, LastSeenOrbit.Yaw, 0.01) ||
+		!FMath::IsNearlyEqual(O.Pitch, LastSeenOrbit.Pitch, 0.01) || !FMath::IsNearlyEqual(O.Distance, LastSeenOrbit.Distance, 0.01))
+	{
+		LastSeenOrbit = O;
+		if (Settings->bLiveFXPreview) { bLiveNeedsRender = true; bLiveNeedsFX = true; LiveRequestTime = FPlatformTime::Seconds(); }
+	}
+
+	if (!Settings->bLiveFXPreview || (!bLiveNeedsRender && !bLiveNeedsFX) || !Studio->GetMesh()) { return; }
+	const double Now = FPlatformTime::Seconds();
+	const double Delay = bLiveNeedsRender ? 0.3 : 0.06;     // effects alone are re-applied almost instantly
+	if (Now - LiveRequestTime < Delay) { return; }
+	if (FSlateApplication::Get().GetPressedMouseButtons().Num() > 0 && bLiveNeedsRender) { return; }   // still dragging
+
+	const double T0 = FPlatformTime::Seconds();
+	if (bLiveNeedsRender || LiveRawW != Settings->Width || LiveRawH != Settings->Height)
+	{
+		const FIconForgeView V = C->SnapAndGetView();   // camera is at rest here (debounced)
+		TArray<FColor> Raw;
+		const float TanV = V.TanHalfVFov > 0.f ? V.TanHalfVFov : C->GetTanHalfVFov();
+		if (!Studio->Render(*Settings, V.Location, V.Rotation, TanV, Raw, true))
+		{
+			bLiveNeedsRender = bLiveNeedsFX = false;
+			return;
+		}
+		LiveRaw = MoveTemp(Raw);
+		LiveRawW = Settings->Width; LiveRawH = Settings->Height;
+		// A/B texture: raw image with the plain output background
+		TArray<FColor> RawShown = LiveRaw;
+		int32 Rw = LiveRawW, Rh = LiveRawH;
+		{
+			TStrongObjectPtr<UIconForgeSettings> Plain(DuplicateObject<UIconForgeSettings>(Settings.Get(), GetTransientPackage()));
+			Plain->ResetEffects();
+			IconForgeFX::Process(*Plain, RawShown, Rw, Rh);
+		}
+		UTexture2D* RT = UTexture2D::CreateTransient(Rw, Rh, PF_B8G8R8A8);
+		if (RT)
+		{
+			RT->SRGB = true;
+			void* D = RT->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+			FMemory::Memcpy(D, RawShown.GetData(), RawShown.Num() * sizeof(FColor));
+			RT->GetPlatformData()->Mips[0].BulkData.Unlock();
+			RT->UpdateResource();
+			LiveRawTexture.Reset(RT);
+			if (!LiveRawBrush) { LiveRawBrush = MakeShared<FSlateBrush>(); }
+			LiveRawBrush->SetResourceObject(RT);
+			LiveRawBrush->ImageSize = FVector2D(Rw, Rh);
+		}
+	}
+	bLiveNeedsRender = false;
+
+	TArray<FColor> Px = LiveRaw;
+	int32 W = LiveRawW, H = LiveRawH;
+	IconForgeFX::Process(*Settings, Px, W, H);
+	UploadLiveTexture(Px, W, H);
+	bLiveNeedsFX = false;
+	LastLiveMs = (FPlatformTime::Seconds() - T0) * 1000.0;
+}
+
+void SIconForgeEditor::UploadLiveTexture(const TArray<FColor>& Px, int32 W, int32 H)
+{
+	if (Px.Num() != W * H || W <= 0 || H <= 0) { return; }
+	UTexture2D* T = UTexture2D::CreateTransient(W, H, PF_B8G8R8A8);
+	if (!T) { return; }
+	T->SRGB = true;
+	T->Filter = Settings->WantsPixelFiltering() ? TF_Nearest : TF_Default;
+	void* Data = T->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+	FMemory::Memcpy(Data, Px.GetData(), Px.Num() * sizeof(FColor));
+	T->GetPlatformData()->Mips[0].BulkData.Unlock();
+	T->UpdateResource();
+	LiveTexture.Reset(T);
+	if (!LiveBrush) { LiveBrush = MakeShared<FSlateBrush>(); }
+	LiveBrush->SetResourceObject(T);
+	LiveBrush->ImageSize = FVector2D(W, H);
+	LiveSize = FIntPoint(W, H);
+}
+
+const FSlateBrush* SIconForgeEditor::GetResultBrush() const
+{
+	if (bShowLive && LiveBrush)
+	{
+		return (bCompareRaw && LiveRawBrush) ? LiveRawBrush.Get() : LiveBrush.Get();
+	}
+	return SelectedShot && SelectedShot->Brush ? SelectedShot->Brush.Get() : nullptr;
+}
+
+FVector2D SIconForgeEditor::GetResultSize() const
+{
+	FVector2D Sz = FVector2D::ZeroVector;
+	if (const FSlateBrush* B = GetResultBrush()) { Sz = B->ImageSize; }
+	if (Sz.X > 0 && Sz.Y > 0 && FMath::Max(Sz.X, Sz.Y) < 256.0)
+	{
+		Sz *= FMath::CeilToDouble(256.0 / FMath::Max(Sz.X, Sz.Y));   // integer zoom keeps pixel art crisp
+	}
+	return Sz;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -6,6 +6,7 @@
 #include "UObject/StrongObjectPtr.h"
 #include "IconForgeSettings.h"
 #include "IconForgeStudio.h"
+#include "SIconForgeViewport.h"
 
 class SIconForgeViewport;
 class IDetailsView;
@@ -60,6 +61,8 @@ private:
 	TSharedRef<SWidget> BuildSettingsPanel();
 	TSharedRef<SWidget> BuildResultPanel();
 	TSharedRef<SWidget> BuildPresetMenu();
+	TSharedRef<SWidget> BuildFXPresets();
+	void ApplyFXPreset(EIconForgeFXPreset P);
 	void RebuildHistoryStrip();
 
 	FText GetStatusText() const;
@@ -95,6 +98,14 @@ private:
 	void LoadPreset(const FString& File);
 	void Notify(const FString& Msg, bool bSuccess);
 
+	// ---- Live FX preview ----
+	/** bRerender = scene/camera changed (new capture needed); false = only effects changed (re-use cached raw render). */
+	void RequestLivePreview(bool bRerender);
+	void UpdateLivePreview();
+	void UploadLiveTexture(const TArray<FColor>& Px, int32 W, int32 H);
+	const FSlateBrush* GetResultBrush() const;
+	FVector2D GetResultSize() const;
+
 	TUniquePtr<FIconForgeStudio> Studio;
 	TStrongObjectPtr<UIconForgeSettings> Settings;
 	TSharedPtr<SIconForgeViewport> Viewport;
@@ -110,4 +121,20 @@ private:
 	FVector2D LastViewportArea = FVector2D::ZeroVector;
 	bool bSessionDirty = false;
 	bool bBatchRunning = false;
+
+	// Live preview state
+	TArray<FColor> LiveRaw;                 // last raw capture (no effects), output resolution
+	int32 LiveRawW = 0, LiveRawH = 0;
+	TStrongObjectPtr<UTexture2D> LiveTexture;
+	TSharedPtr<FSlateBrush> LiveBrush;
+	TStrongObjectPtr<UTexture2D> LiveRawTexture;
+	TSharedPtr<FSlateBrush> LiveRawBrush;
+	FIntPoint LiveSize = FIntPoint::ZeroValue;
+	bool bLiveNeedsRender = false;
+	bool bLiveNeedsFX = false;
+	double LiveRequestTime = 0.0;
+	double LastLiveMs = 0.0;
+	bool bShowLive = false;                 // RESULT shows the live preview instead of the selected shot
+	bool bCompareRaw = false;               // A/B: show the image without effects
+	FIconForgeOrbit LastSeenOrbit;
 };

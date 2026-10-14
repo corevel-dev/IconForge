@@ -141,14 +141,15 @@ void FIconForgeStudio::FillPostProcess(const UIconForgeSettings& S, FPostProcess
 	PP.bOverride_ReflectionMethod = true;                 PP.ReflectionMethod = EReflectionMethod::None;
 }
 
-UTextureRenderTarget2D* FIconForgeStudio::AcquireTarget(TObjectPtr<UTextureRenderTarget2D>& Slot, int32 W, int32 H, EPixelFormat Format, bool bLinear)
+UTextureRenderTarget2D* FIconForgeStudio::AcquireTarget(TObjectPtr<UTextureRenderTarget2D>& Slot, int32 W, int32 H, EPixelFormat Format, bool bLinear, float Gamma)
 {
-	if (!Slot || Slot->SizeX != W || Slot->SizeY != H)
+	if (!Slot || Slot->SizeX != W || Slot->SizeY != H || !FMath::IsNearlyEqual(Slot->TargetGamma, Gamma))
 	{
 		if (Slot) { Slot->ReleaseResource(); }
 		Slot = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
 		Slot->ClearColor = FLinearColor::Transparent;
 		Slot->InitCustomFormat(W, H, Format, bLinear);
+		Slot->TargetGamma = Gamma;
 		Slot->UpdateResourceImmediate(true);
 	}
 	return Slot;
@@ -169,25 +170,39 @@ void FIconForgeStudio::ReleaseTargets()
 	MaskTarget = nullptr;
 }
 
-bool FIconForgeStudio::Render(const UIconForgeSettings& S, const FVector& CamLoc, const FRotator& CamRot, float TanHalfVFov, TArray<FColor>& Out)
+bool FIconForgeStudio::Render(const UIconForgeSettings& S, const FVector& CamLoc, const FRotator& CamRot, float TanHalfVFov, TArray<FColor>& Out, bool bFastPreview)
 {
 	if (!MeshComp->GetStaticMesh() || TanHalfVFov <= 0.f) { return false; }
 
 	// Make sure everything is ready: shaders, textures, mesh, full-res mips.
-	if (GShaderCompilingManager) { GShaderCompilingManager->FinishAllCompilation(); }
-	FTextureCompilingManager::Get().FinishAllCompilation();
 	MeshComp->SetForcedLodModel(1); // 1 = LOD0
 	ON_SCOPE_EXIT { MeshComp->SetForcedLodModel(0); Capture->TextureTarget = nullptr; };   // also on early return
-	MeshComp->PrestreamTextures(30.f, true);
-	IStreamingManager::Get().StreamAllResources(5.f);
+	if (!bFastPreview)
+	{
+		if (GShaderCompilingManager) { GShaderCompilingManager->FinishAllCompilation(); }
+		FTextureCompilingManager::Get().FinishAllCompilation();
+		MeshComp->PrestreamTextures(30.f, true);
+		IStreamingManager::Get().StreamAllResources(5.f);
+	}
 	ApplySettings(S, CamRot);
 	FlushRenderingCommands();
 
-	const int32 SS = S.GetEffectiveSuperSampling();
+	const int32 SS = bFastPreview ? 1 : S.GetEffectiveSuperSampling();
 	const int32 W = S.Width * SS, H = S.Height * SS;
 
-	UTextureRenderTarget2D* RTColor = AcquireTarget(ColorTarget, W, H, PF_B8G8R8A8, false);
-	UTextureRenderTarget2D* RTMask  = AcquireTarget(MaskTarget, W, H, PF_FloatRGBA, true);
+	// BRIGHTNESS FIX: SCS_FinalColorLDR is already tonemapped + gamma-encoded (sRGB) by the post-process chain.
+	// The target used to be created with bForceLinearGamma = false, i.e. as an sRGB render target: the GPU then
+	// applied linear->sRGB encoding a SECOND time on write, which lifts every mid-tone (washed-out, much
+	// lighter textures than in the viewport). A linear (non-sRGB) target stores the tonemapper output as is,
+	// byte-for-byte what the viewport shows.
+	//
+	// Two separate things must be right:
+	//  * the TEXTURE must be non-sRGB (bForceLinearGamma = true), otherwise the GPU re-encodes on write -> too light;
+	//  * the tonemapper output gamma comes from TargetGamma (GetDisplayGamma()). With a linear target UE reports
+	//    gamma 1.0 and the tonemapper writes LINEAR values -> too dark. Force the display gamma the editor
+	//    viewport uses (2.2 by default), so the bytes are exactly what the viewport shows.
+	UTextureRenderTarget2D* RTColor = AcquireTarget(ColorTarget, W, H, PF_B8G8R8A8, true, UTextureRenderTarget::GetDefaultDisplayGamma());
+	UTextureRenderTarget2D* RTMask  = AcquireTarget(MaskTarget, W, H, PF_FloatRGBA, true, 0.f);
 	if (!RTColor || !RTMask) { return false; }
 
 	Capture->SetWorldLocationAndRotation(CamLoc, CamRot);
@@ -225,28 +240,19 @@ bool FIconForgeStudio::Render(const UIconForgeSettings& S, const FVector& CamLoc
 	else { Small = MoveTemp(Color); }
 	if (Small.Num() != S.Width * S.Height) { return false; }
 
-	const FColor Bg = S.BackgroundColor.ToFColor(true);
+	// Un-premultiply: straight alpha, transparent background. Background colour / gradients are
+	// composited later by IconForgeFX::Process (so effects like outlines/glow sit between object and background).
 	Out.SetNumUninitialized(Small.Num());
 	for (int32 i = 0; i < Small.Num(); ++i)
 	{
 		const FColor& P = Small[i];
 		const float A = P.A / 255.f;
+		const float Inv = A > 0.002f ? 1.f / A : 0.f;
 		FColor R;
-		if (S.bTransparentBackground)
-		{
-			const float Inv = A > 0.002f ? 1.f / A : 0.f;
-			R.R = (uint8)FMath::Clamp(FMath::RoundToInt(P.R * Inv), 0, 255);
-			R.G = (uint8)FMath::Clamp(FMath::RoundToInt(P.G * Inv), 0, 255);
-			R.B = (uint8)FMath::Clamp(FMath::RoundToInt(P.B * Inv), 0, 255);
-			R.A = P.A;
-		}
-		else
-		{
-			R.R = (uint8)FMath::Clamp(FMath::RoundToInt(P.R + Bg.R * (1.f - A)), 0, 255);
-			R.G = (uint8)FMath::Clamp(FMath::RoundToInt(P.G + Bg.G * (1.f - A)), 0, 255);
-			R.B = (uint8)FMath::Clamp(FMath::RoundToInt(P.B + Bg.B * (1.f - A)), 0, 255);
-			R.A = 255;
-		}
+		R.R = (uint8)FMath::Clamp(FMath::RoundToInt(P.R * Inv), 0, 255);
+		R.G = (uint8)FMath::Clamp(FMath::RoundToInt(P.G * Inv), 0, 255);
+		R.B = (uint8)FMath::Clamp(FMath::RoundToInt(P.B * Inv), 0, 255);
+		R.A = P.A;
 		Out[i] = R;
 	}
 	return true;

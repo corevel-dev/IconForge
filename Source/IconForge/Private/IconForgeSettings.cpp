@@ -112,6 +112,14 @@ bool UIconForgeSettings::LoadFromFile(const FString& Path)
 	FramingPadding = FMath::Clamp(FramingPadding, 0.5f, 3.f);
 	CameraSmoothing = FMath::Clamp(CameraSmoothing, 0.f, 40.f);
 	PrecisionMultiplier = FMath::Clamp(PrecisionMultiplier, 0.05f, 1.f);
+	RetroFX.PixelSize = FMath::Clamp(RetroFX.PixelSize, 1, 64);
+	RetroFX.PosterizeLevels = FMath::Clamp(RetroFX.PosterizeLevels, 2, 64);
+	RetroFX.AutoColors = FMath::Clamp(RetroFX.AutoColors, 2, 64);
+	StylizeFX.OutlineThickness = FMath::Clamp(StylizeFX.OutlineThickness, 0, 32);
+	StylizeFX.OuterOutlineThickness = FMath::Clamp(StylizeFX.OuterOutlineThickness, 0, 32);
+	StylizeFX.GlowRadius = FMath::Clamp(StylizeFX.GlowRadius, 1, 96);
+	StylizeFX.ShadowBlur = FMath::Clamp(StylizeFX.ShadowBlur, 0, 64);
+	CRTFX.ScanlinePeriod = FMath::Clamp(CRTFX.ScanlinePeriod, 2, 32);
 	return bOk;
 }
 
@@ -159,5 +167,97 @@ void UIconForgeSettings::ApplyLightPreset(EIconForgeLightPreset P)
 		FillRotation = FRotator(0, -90, 0);  FillIntensity = 1.f; FillColor = FLinearColor::White;
 		RimRotation = FRotator(0, 180, 0);   RimIntensity = 0.f;  RimColor = FLinearColor::White;
 		SkyIntensity = 3.f; break;
+	}
+}
+
+void UIconForgeSettings::ResetEffects()
+{
+	ColorFX = FIconForgeColorFX();
+	RetroFX = FIconForgeRetroFX();
+	StylizeFX = FIconForgeStylizeFX();
+	CRTFX = FIconForgeCRTFX();
+}
+
+void UIconForgeSettings::ApplyFXPreset(EIconForgeFXPreset P)
+{
+	if (P == EIconForgeFXPreset::Custom) { return; }
+	ResetEffects();
+	ActiveFXPreset = P;
+
+	// Pixel size is chosen so the sprite has a classic resolution regardless of the output size
+	auto PixelsFor = [this](int32 SpriteRes) { return FMath::Max(1, FMath::RoundToInt((float)FMath::Max(Width, Height) / (float)SpriteRes)); };
+	FIconForgeRetroFX& R = RetroFX;
+	FIconForgeStylizeFX& St = StylizeFX;
+
+	switch (P)
+	{
+	case EIconForgeFXPreset::GameBoy:
+		R.PixelSize = PixelsFor(32); R.bHardAlpha = true; R.Palette = EIconForgePalette::GameBoy;
+		R.bNormalizeLuminance = true; R.bMatchByLuminance = true; R.Dither = EIconForgeDither::Bayer4; R.DitherStrength = 0.6f;
+		St.OutlineThickness = 1; St.OutlineColor = FLinearColor::FromSRGBColor(FColor(15, 56, 15));
+		ColorFX.Sharpen = 0.5f;
+		break;
+	case EIconForgeFXPreset::NES:
+		R.PixelSize = PixelsFor(32); R.bHardAlpha = true; R.Palette = EIconForgePalette::NES;
+		R.Dither = EIconForgeDither::None; ColorFX.Vibrance = 1.3f; ColorFX.Sharpen = 0.6f;
+		St.OutlineThickness = 1; St.OutlineColor = FLinearColor::Black;
+		break;
+	case EIconForgeFXPreset::PICO8:
+		R.PixelSize = PixelsFor(32); R.bHardAlpha = true; R.Palette = EIconForgePalette::PICO8;
+		R.Dither = EIconForgeDither::Bayer2; R.DitherStrength = 0.35f; ColorFX.Vibrance = 1.4f;
+		St.OutlineThickness = 1; St.OutlineColor = FLinearColor::FromSRGBColor(FColor(29, 43, 83));
+		break;
+	case EIconForgeFXPreset::SNES:
+		R.PixelSize = PixelsFor(64); R.bHardAlpha = true; R.Palette = EIconForgePalette::Auto; R.AutoColors = 15;
+		R.Dither = EIconForgeDither::None; ColorFX.Vibrance = 1.25f; ColorFX.Sharpen = 0.8f;
+		St.OutlineThickness = 1; St.OutlineColor = FLinearColor::FromSRGBColor(FColor(20, 12, 28)); St.InnerEdgeDarken = 0.35f;
+		break;
+	case EIconForgeFXPreset::PS1:
+		R.PixelSize = PixelsFor(128); R.Palette = EIconForgePalette::Posterize; R.PosterizeLevels = 32;
+		R.Dither = EIconForgeDither::Bayer4; R.DitherStrength = 1.f; R.bHardAlpha = true;
+		ColorFX.Sharpen = 0.3f;
+		break;
+	case EIconForgeFXPreset::CGA:
+		R.PixelSize = PixelsFor(48); R.bHardAlpha = true; R.Palette = EIconForgePalette::CGA;
+		R.bNormalizeLuminance = true; R.Dither = EIconForgeDither::Bayer4; R.DitherStrength = 0.8f;
+		break;
+	case EIconForgeFXPreset::OneBitMac:
+		R.PixelSize = PixelsFor(64); R.bHardAlpha = true; R.Palette = EIconForgePalette::OneBit;
+		R.bNormalizeLuminance = true; R.bMatchByLuminance = true; R.Dither = EIconForgeDither::Atkinson;
+		St.OutlineThickness = 1; St.OutlineColor = FLinearColor::Black;
+		break;
+	case EIconForgeFXPreset::VirtualBoy:
+		R.PixelSize = PixelsFor(64); R.bHardAlpha = true; R.Palette = EIconForgePalette::VirtualBoy;
+		R.bNormalizeLuminance = true; R.bMatchByLuminance = true; R.Dither = EIconForgeDither::Bayer2; R.DitherStrength = 0.5f;
+		CRTFX.Scanlines = 0.35f; CRTFX.ScanlinePeriod = FMath::Max(2, R.PixelSize);
+		break;
+	case EIconForgeFXPreset::Arcade:
+		R.PixelSize = PixelsFor(96); R.Palette = EIconForgePalette::Posterize; R.PosterizeLevels = 12; R.Dither = EIconForgeDither::Bayer2; R.DitherStrength = 0.4f;
+		ColorFX.Vibrance = 1.5f;
+		St.GlowIntensity = 0.8f; St.GlowRadius = FMath::Max(4, Width / 24); St.GlowColor = FLinearColor(0.3f, 0.6f, 1.f);
+		CRTFX.Scanlines = 0.45f; CRTFX.ScanlinePeriod = FMath::Max(2, R.PixelSize); CRTFX.PhosphorMask = 0.25f;
+		CRTFX.ChromaticAberration = 1.5f; CRTFX.Curvature = 0.12f; CRTFX.Vignette = 0.5f; CRTFX.Noise = 0.05f;
+		St.Background = EIconForgeBackground::RadialGradient;
+		St.BackgroundA = FLinearColor(0.03f, 0.05f, 0.12f, 1.f); St.BackgroundB = FLinearColor(0.f, 0.f, 0.01f, 1.f);
+		break;
+	case EIconForgeFXPreset::CleanUI:
+		ColorFX.Sharpen = 0.6f; ColorFX.Vibrance = 1.1f;
+		St.OutlineThickness = FMath::Max(1, Width / 128); St.OutlineColor = FLinearColor(0.02f, 0.02f, 0.03f, 1.f);
+		St.bDropShadow = true; St.ShadowOffset = FIntPoint(Width / 96, Width / 64); St.ShadowBlur = FMath::Max(1, Width / 80);
+		break;
+	case EIconForgeFXPreset::Legendary:
+		ColorFX.Sharpen = 0.5f; ColorFX.Vibrance = 1.15f;
+		St.OuterOutlineThickness = FMath::Max(1, Width / 170); St.OuterOutlineColor = FLinearColor(1.f, 0.85f, 0.4f, 1.f);
+		St.GlowIntensity = 1.4f; St.GlowRadius = FMath::Max(4, Width / 16); St.GlowColor = FLinearColor(1.f, 0.5f, 0.05f);
+		St.Background = EIconForgeBackground::RadialGradient;
+		St.BackgroundA = FLinearColor(0.45f, 0.22f, 0.04f, 1.f); St.BackgroundB = FLinearColor(0.07f, 0.03f, 0.01f, 1.f);
+		St.FrameThickness = FMath::Max(2, Width / 64); St.FrameColor = FLinearColor(1.f, 0.62f, 0.15f, 1.f); St.CornerRadius = Width / 10;
+		break;
+	case EIconForgeFXPreset::Toon:
+		R.Palette = EIconForgePalette::Auto; R.AutoColors = 10; R.bHardAlpha = false;
+		ColorFX.Vibrance = 1.35f; ColorFX.Sharpen = 0.4f;
+		St.OutlineThickness = FMath::Max(2, Width / 96); St.OutlineColor = FLinearColor(0.03f, 0.02f, 0.04f, 1.f); St.InnerEdgeDarken = 0.25f;
+		break;
+	default: break;
 	}
 }
